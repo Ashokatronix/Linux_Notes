@@ -24,9 +24,18 @@
 int main(void)
 {
     printf("=== Process Basics ===\n");
+
+    /* getpid()  → PID of this process (assigned by kernel, system-wide unique)
+     * getppid() → PID of whoever launched this (e.g. bash) */
     printf("[Parent] PID=%d  PPID=%d\n", getpid(), getppid());
 
-    pid_t child = fork();   /* <-- kernel creates child here */
+    /* fork() duplicates the entire process here.
+     * After this line TWO processes run the same code.
+     * Return value tells them apart:
+     *   parent → child's PID (> 0)
+     *   child  → 0
+     *   error  → -1 */
+    pid_t child = fork();
 
     if (child < 0) {
         perror("fork failed");
@@ -34,15 +43,23 @@ int main(void)
     }
 
     if (child == 0) {
-        /* ------- CHILD process runs this block ------- */
+        /* ── CHILD process runs this block ──────────────────────────
+         * child == 0 because fork() returns 0 in the child.
+         * PPID here = parent's PID, proving the relationship. */
         printf("[Child ] PID=%d  PPID=%d\n", getpid(), getppid());
-        sleep(1);           /* simulate some work */
+        sleep(1);           /* simulate work (child enters 'S' sleep state) */
         printf("[Child ] Done. Exiting.\n");
-        exit(0);
+        exit(0);            /* child exits cleanly */
+
     } else {
-        /* ------- PARENT process runs this block ------ */
+        /* ── PARENT process runs this block ─────────────────────────
+         * child > 0 here — it's the child's PID returned by fork(). */
         printf("[Parent] Spawned child PID=%d\n", child);
-        wait(NULL);         /* wait for child – avoids zombie state */
+
+        /* wait(NULL) blocks parent until child exits.
+         * Without this, the child becomes a ZOMBIE (Z state) —
+         * dead but its process table entry stays until parent reaps it. */
+        wait(NULL);
         printf("[Parent] Child finished. Parent exiting.\n");
     }
 

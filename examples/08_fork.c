@@ -26,9 +26,17 @@
 
 int main(void)
 {
+    /* This line runs ONCE — before the process is duplicated */
     printf("[before fork] PID=%d\n", getpid());
 
-    pid_t pid = fork();   /* <── kernel duplicates process here */
+    /* fork() duplicates this entire process here.
+     * TWO processes continue from the NEXT line.
+     * Return value tells them apart:
+     *   parent → child's PID (> 0)
+     *   child  → 0
+     *   error  → -1
+     * COW: both share physical memory pages until one writes — makes fork() fast. */
+    pid_t pid = fork();
 
     if (pid < 0) {
         perror("fork");
@@ -36,21 +44,25 @@ int main(void)
     }
 
     if (pid == 0) {
-        /* ── CHILD ─────────────────────────────────── */
+        /* ── CHILD: fork() returned 0 ───────────────────────────────────── */
         printf("[CHILD ] PID=%d  PPID=%d\n", getpid(), getppid());
         printf("[CHILD ] Doing some work...\n");
         sleep(1);
         printf("[CHILD ] Done. Exiting.\n");
-        exit(0);
+        exit(0);   /* exit code 0 = success; parent collects this via WEXITSTATUS */
 
     } else {
-        /* ── PARENT ────────────────────────────────── */
+        /* ── PARENT: fork() returned child's PID ─────────────────────────── */
         printf("[PARENT] PID=%d  spawned child PID=%d\n", getpid(), pid);
 
-        /* wait() blocks until child exits – prevents zombie state */
+        /* wait() blocks parent until child exits.
+         * Without this, child becomes a ZOMBIE (Z state) —
+         * dead but its process table entry lingers until parent reaps it. */
         int status;
         wait(&status);
 
+        /* WIFEXITED  → true if child exited normally (not killed by signal)
+         * WEXITSTATUS → extracts the actual exit code (0 = success) */
         if (WIFEXITED(status))
             printf("[PARENT] Child exited with code %d\n", WEXITSTATUS(status));
     }

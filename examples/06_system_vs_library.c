@@ -33,19 +33,33 @@
 
 int main(void)
 {
-    /* -------- Library call: printf (buffered, user-space) -------- */
+    /* ── Library call: printf() ─────────────────────────────────────────
+     * Runs entirely in USER SPACE inside libc.
+     * Data goes into a buffer first — does NOT immediately cross to kernel.
+     * Actual write() syscall happens on: fflush(), buffer full, or fclose(). */
     printf("Hello from printf() [library call - user space]\n");
-    fflush(stdout);
+    fflush(stdout);  /* force buffer flush → triggers write() syscall now */
 
-    /* -------- System call: write() (unbuffered, crosses to kernel) */
+    /* ── System call: write() ───────────────────────────────────────────
+     * Crosses directly into KERNEL SPACE — no buffering.
+     * STDOUT_FILENO = fd 1 (the terminal).
+     * On x86-64 this maps to syscall number 1.
+     * Slower per-call than printf if called in a tight loop,
+     * but data goes to kernel immediately (no buffering delay). */
     const char *msg = "Hello from write() [system call - kernel space]\n";
-    write(STDOUT_FILENO, msg, strlen(msg));  /* sysno 1 on x86-64 */
+    write(STDOUT_FILENO, msg, strlen(msg));
 
-    /* -------- system() – sequential, runs shell command ----------- */
+    /* ── system() – the most expensive: fork + exec + wait ─────────────
+     * Each call to system() internally does:
+     *   fork()   → create child process
+     *   execve() → child becomes /bin/sh running the command
+     *   wait()   → parent BLOCKS until shell finishes
+     * Because of wait(), execution is purely SEQUENTIAL —
+     * the next line won't run until ls fully completes. */
     printf("\n--- system() examples (sequential) ---\n");
     system("echo 'system(): running ls -l /tmp'");
-    system("ls -l /tmp | head -5");   /* returns only after ls finishes */
+    system("ls -l /tmp | head -5");   /* blocks here until ls exits */
 
-    printf("\n--- Done ---\n");
+    printf("\n--- Done ---\n");  /* only prints after both system() calls return */
     return 0;
 }

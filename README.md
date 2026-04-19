@@ -35,12 +35,13 @@ Linux_Notes/
     ├── 01_process_basics.c     ← fork, PID, PPID, process states
     ├── 02_signals.c            ← SIGKILL, SIGSTOP, SIGCONT, SIGTERM
     ├── 03_daemon.c             ← daemonize() step-by-step
-    ├── 04_setjmp_longjmp.c     ← setjmp / longjmp
+    ├── 04_setjmp_longjmp.c     ← setjmp / longjmp (C try/catch)
     ├── 05_threads_context.c    ← pthreads, mutex, context switching
     ├── 06_system_vs_library.c  ← system(), write() vs printf()
-    ├── 07a_fopen.c             ← fopen: buffered file I/O
-    ├── 07b_fork.c              ← fork: parent/child, COW, wait()
-    └── 07c_socket.c            ← TCP server: socket/bind/listen/accept
+    ├── 07_fopen.c              ← fopen: buffered file I/O
+    ├── 08_fork.c               ← fork: parent/child, COW, wait()
+    ├── 09_socket.c             ← TCP server: socket/bind/listen/accept
+    └── outputs.md              ← 📋 recorded outputs from all programs
 ```
 
 ---
@@ -58,10 +59,10 @@ done
 
 ### Run each example
 ```bash
-./fopen_demo              # 07a – writes & reads /tmp/fopen_demo.txt
-./fork_demo               # 07b – parent + child process
-./socket_demo &           # 07c – TCP server on port 9090
-echo "Hi" | nc localhost 9090   # test the server
+gcc 07_fopen.c  -o fopen_demo  && ./fopen_demo        # 07  – writes & reads /tmp/fopen_demo.txt
+gcc 08_fork.c   -o fork_demo   && ./fork_demo          # 08  – parent + child process
+gcc 09_socket.c -o socket_demo && ./socket_demo &      # 09  – TCP server on port 9090
+echo "Hello" | nc localhost 9090                       # test the socket server
 ```
 
 | Flag | Meaning |

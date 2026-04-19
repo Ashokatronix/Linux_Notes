@@ -52,15 +52,17 @@ void daemonize(void)
     /* Step 5: Change working directory */
     chdir("/");
 
-    /* Step 6: Close all open file descriptors */
-    for (int fd = sysconf(_SC_OPEN_MAX); fd >= 0; fd--)
-        close(fd);
+    /* Step 6: Close only stdin/stdout/stderr */
+    close(STDIN_FILENO);
+    close(STDOUT_FILENO);
+    close(STDERR_FILENO);
 
     /* Redirect stdin/stdout/stderr to /dev/null */
     int null_fd = open("/dev/null", O_RDWR);
     dup2(null_fd, STDIN_FILENO);
     dup2(null_fd, STDOUT_FILENO);
     dup2(null_fd, STDERR_FILENO);
+    if (null_fd > STDERR_FILENO) close(null_fd);
 }
 
 int main(void)
