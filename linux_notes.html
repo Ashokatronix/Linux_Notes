@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Linux Kernel Internals – Study Notes</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@300;400;600;700&display=swap');
+  :root{
+    --bg:#0d1117;--bg2:#161b22;--bg3:#21262d;
+    --border:#30363d;--accent:#58a6ff;--accent2:#3fb950;
+    --warn:#f85149;--yellow:#e3b341;--purple:#bc8cff;
+    --text:#e6edf3;--muted:#8b949e;--code-bg:#0d1117;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;font-size:15px;line-height:1.7}
+  a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+
+  /* ── Sidebar ── */
+  nav{position:fixed;top:0;left:0;width:240px;height:100vh;background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;padding:1rem 0;z-index:100}
+  nav .logo{padding:.5rem 1.2rem 1rem;font-size:13px;font-weight:700;color:var(--accent);letter-spacing:.5px;border-bottom:1px solid var(--border);margin-bottom:.5rem}
+  nav ul{list-style:none}
+  nav ul li a{display:block;padding:.3rem 1.2rem;font-size:13px;color:var(--muted);transition:all .15s}
+  nav ul li a:hover,nav ul li a.active{color:var(--text);background:var(--bg3);text-decoration:none;border-left:2px solid var(--accent)}
+  nav .section-hdr{padding:.6rem 1.2rem .2rem;font-size:11px;font-weight:700;color:var(--yellow);text-transform:uppercase;letter-spacing:1px}
+
+  /* ── Main ── */
+  main{margin-left:240px;padding:2rem 2.5rem;max-width:960px}
+  h1{font-size:2rem;font-weight:700;color:var(--accent);margin-bottom:.3rem}
+  .subtitle{color:var(--muted);font-size:.9rem;margin-bottom:2rem}
+  h2{font-size:1.4rem;font-weight:700;color:var(--text);margin:2.5rem 0 .6rem;padding-bottom:.4rem;border-bottom:1px solid var(--border)}
+  h3{font-size:1.05rem;font-weight:600;color:var(--accent);margin:1.5rem 0 .5rem}
+  h4{font-size:.9rem;font-weight:600;color:var(--yellow);margin:.8rem 0 .3rem}
+  p{margin:.4rem 0 .8rem;color:#c9d1d9}
+  ul,ol{padding-left:1.4rem;margin:.4rem 0 .8rem}
+  li{margin:.2rem 0;color:#c9d1d9}
+  strong{color:var(--text)}
+  section{margin-bottom:3rem}
+
+  /* ── Badges ── */
+  .badge{display:inline-block;padding:.1rem .5rem;border-radius:4px;font-size:11px;font-weight:700;margin-right:.3rem}
+  .badge-cmd{background:#0d2f6e;color:var(--accent);border:1px solid var(--accent)}
+  .badge-sys{background:#1a2d1a;color:var(--accent2);border:1px solid var(--accent2)}
+  .badge-warn{background:#2d1116;color:var(--warn);border:1px solid var(--warn)}
+  .badge-info{background:#2d2316;color:var(--yellow);border:1px solid var(--yellow)}
+
+  /* ── Code Blocks ── */
+  pre{background:var(--code-bg);border:1px solid var(--border);border-radius:8px;padding:1.1rem 1.3rem;overflow-x:auto;margin:.6rem 0 1.2rem;position:relative}
+  pre code{font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.6;color:#e6edf3}
+  .lang-tag{position:absolute;top:.5rem;right:.8rem;font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace}
+  .cmd{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:.7rem 1rem;font-family:'JetBrains Mono',monospace;font-size:13px;margin:.4rem 0 .8rem}
+  .cmd .prompt{color:var(--accent2)}
+  .cmd .cmt{color:var(--muted)}
+
+  /* ── Info Boxes ── */
+  .box{border-radius:8px;padding:1rem 1.2rem;margin:.8rem 0 1.2rem;border-left:4px solid}
+  .box-blue{background:#0c1929;border-color:var(--accent)}
+  .box-green{background:#0c1e0c;border-color:var(--accent2)}
+  .box-red{background:#1e0c0c;border-color:var(--warn)}
+  .box-yellow{background:#1e1a0c;border-color:var(--yellow)}
+  .box-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:.4rem}
+  .box-blue .box-title{color:var(--accent)}
+  .box-green .box-title{color:var(--accent2)}
+  .box-red .box-title{color:var(--warn)}
+  .box-yellow .box-title{color:var(--yellow)}
+
+  /* ── Table ── */
+  table{width:100%;border-collapse:collapse;margin:.8rem 0 1.2rem;font-size:13px}
+  th{background:var(--bg3);color:var(--accent);text-align:left;padding:.5rem .8rem;border:1px solid var(--border)}
+  td{padding:.45rem .8rem;border:1px solid var(--border);color:#c9d1d9}
+  tr:nth-child(even) td{background:#0c1010}
+
+  /* ── Quick-run banner ── */
+  .run-box{background:linear-gradient(135deg,#0c1929,#162032);border:1px solid var(--accent);border-radius:10px;padding:1.2rem 1.5rem;margin:1.5rem 0}
+  .run-box h4{color:var(--accent);font-size:1rem;margin:0 0 .6rem}
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar{width:6px;height:6px}
+  ::-webkit-scrollbar-track{background:var(--bg2)}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════  SIDEBAR  ═══════════════ -->
+<nav>
+  <div class="logo">🐧 Linux Notes</div>
+  <ul>
+    <li class="section-hdr">Getting Started</li>
+    <li><a href="#quickstart">Quick Start – getpid.c</a></li>
+    <li><a href="#ps-commands">ps / jobs / kill</a></li>
+
+    <li class="section-hdr">Process Concepts</li>
+    <li><a href="#pid-jobid">PID vs Job ID</a></li>
+    <li><a href="#max-pid">Max PID & Wrap</a></li>
+    <li><a href="#process-states">Process States</a></li>
+    <li><a href="#daemon">Daemon Process</a></li>
+    <li><a href="#boot">System Boot</a></li>
+
+    <li class="section-hdr">Scheduling</li>
+    <li><a href="#scheduling">Turnaround / Response</a></li>
+    <li><a href="#starvation">Job Starvation</a></li>
+    <li><a href="#cpu-io-bound">CPU vs I/O Bound</a></li>
+
+    <li class="section-hdr">Signals</li>
+    <li><a href="#signals">kill -9 / -18 / -19</a></li>
+    <li><a href="#suspend">Suspend State</a></li>
+
+    <li class="section-hdr">C Internals</li>
+    <li><a href="#setjmp">setjmp / longjmp</a></li>
+    <li><a href="#threads">Threads & Context Switch</a></li>
+    <li><a href="#system-fn">system() Function</a></li>
+    <li><a href="#lib-vs-sys">Library vs System Calls</a></li>
+    <li><a href="#spaces">Kernel / User Space</a></li>
+
+    <li class="section-hdr">I/O & IPC</li>
+    <li><a href="#fopen">fopen – 07a_fopen.c</a></li>
+    <li><a href="#fork">fork – 07b_fork.c</a></li>
+    <li><a href="#sockets">Sockets – 07c_socket.c</a></li>
+  </ul>
+</nav>
+
+<!-- ═══════════════  MAIN  ═══════════════ -->
+<main>
+<h1>Linux Kernel Internals</h1>
+<p class="subtitle">WSL Study Notes — C examples, commands &amp; theory in one place</p>
+
+<!-- ════════════════════════════════════════
+     QUICK START
+════════════════════════════════════════ -->
+<section id="quickstart">
+<h2>⚡ Quick Start – Compile &amp; Run getpid.c</h2>
+
+<div class="run-box">
+  <h4>1 · Open WSL Terminal</h4>
+  <p>Press <strong>Win + R</strong> → type <code>wsl</code> → Enter, or open <strong>Windows Terminal</strong> and pick Ubuntu tab.</p>
+</div>
+
+<h3>Step-by-Step</h3>
+<div class="cmd"><span class="prompt">$</span> cd ~/Linux_Notes          <span class="cmt"># go to your project folder</span></div>
+<div class="cmd"><span class="prompt">$</span> gcc getpid.c -o getpid    <span class="cmt"># compile: -o names the output binary</span></div>
+<div class="cmd"><span class="prompt">$</span> ./getpid                  <span class="cmt"># run it</span></div>
+
+<h4>Expected Output</h4>
+<pre><code>My  Process ID (PID)  : 1234
+My Parent's PID (PPID): 789</code></pre>
+
+<h3>Compile All Examples at Once</h3>
+<div class="cmd"><span class="prompt">$</span> cd ~/Linux_Notes/examples<br>
+<span class="prompt">$</span> for f in *.c; do gcc "$f" -o "${f%.c}" -lpthread &amp;&amp; echo "✓ $f"; done</div>
+
+<h3>Run Each Example</h3>
+<div class="cmd">
+<span class="prompt">$</span> ./fopen_demo   <span class="cmt"># 07a – writes &amp; reads /tmp/fopen_demo.txt</span><br>
+<span class="prompt">$</span> ./fork_demo    <span class="cmt"># 07b – parent + child process demo</span><br>
+<span class="prompt">$</span> ./socket_demo &amp; <span class="cmt"># 07c – TCP server on port 9090</span><br>
+<span class="prompt">$</span> echo "Hi" | nc localhost 9090  <span class="cmt"># test the server</span>
+</div>
+
+<div class="box box-green">
+  <div class="box-title">💡 gcc flags cheat-sheet</div>
+  <code>-o &lt;name&gt;</code> output binary name &nbsp;|&nbsp;
+  <code>-Wall</code> all warnings &nbsp;|&nbsp;
+  <code>-g</code> debug symbols &nbsp;|&nbsp;
+  <code>-lpthread</code> link pthreads
+</div>
+</section>
+
+<!-- ════════════════════════════════════════
+     PS / JOBS / KILL
+════════════════════════════════════════ -->
+<section id="ps-commands">
+<h2>🔍 Commands: ps, jobs, fg, kill</h2>
+
+<table>
+  <tr><th>Command</th><th>What it does</th></tr>
+  <tr><td><code>ps</code></td><td>Lists processes for the current terminal session</td></tr>
+  <tr><td><code>ps -e</code></td><td>Lists <strong>every</strong> process on the system</td></tr>
+  <tr><td><code>ps aux</code></td><td>Extended info: user, CPU%, MEM%, command</td></tr>
+  <tr><td><code>jobs</code></td><td>Lists background/stopped jobs for the current shell</td></tr>
+  <tr><td><code>fg %1</code></td><td>Bring job #1 back to foreground</td></tr>
+  <tr><td><code>bg %1</code></td><td>Resume stopped job #1 in background</td></tr>
+  <tr><td><code>getpid()</code></td><td>C function – returns PID of calling process</td></tr>
+  <tr><td><code>getppid()</code></td><td>C function – returns PID of parent process</td></tr>
+  <tr><td><code>kill -l</code></td><td>List all signal names &amp; numbers</td></tr>
+  <tr><td><code>kill -9 PID</code></td><td>Force kill (SIGKILL) – cannot be caught</td></tr>
+</table>
+
+<h3>ps -e output columns explained</h3>
+<pre><code>  PID TTY          TIME CMD
+    1 ?        00:00:01 systemd
+  123 pts/0    00:00:00 bash
+  456 ?        00:00:10 nginx</code></pre>
+
+<div class="box box-yellow">
+  <div class="box-title">❓ What does <code>?</code> mean in the TTY column?</div>
+  <p>The <strong><code>?</code></strong> means the process has <strong>no controlling terminal</strong>. This is the hallmark of a <em>daemon process</em> — it was detached from any terminal (via <code>setsid()</code>) and runs silently in the background. Examples: <code>systemd</code>, <code>nginx</code>, <code>sshd</code>.</p>
+  <p>Processes with a real terminal show entries like <code>pts/0</code>, <code>tty1</code>, etc.</p>
+</div>
+</section>
+
+<!-- ════════════════════════════════════════
+     PID vs JOB ID
+════════════════════════════════════════ -->
+<section id="pid-jobid">
+<h2>🆔 Process ID vs Job ID</h2>
+<table>
+  <tr><th></th><th>Process ID (PID)</th><th>Job ID</th></tr>
+  <tr><td><strong>Scope</strong></td><td>System-wide, unique across all processes</td><td>Shell-local, only meaningful to the current shell session</td></tr>
+  <tr><td><strong>Assigned by</strong></td><td>Linux kernel</td><td>bash / zsh</td></tr>
+  <tr><td><strong>Range</strong></td><td>1 – max_pid (usually 4194304)</td><td>1, 2, 3 … (resets per shell)</td></tr>
+  <tr><td><strong>View</strong></td><td><code>ps -e</code></td><td><code>jobs</code></td></tr>
+  <tr><td><strong>Used with kill</strong></td><td><code>kill -9 1234</code></td><td><code>kill %1</code></td></tr>
+</table>
+
+<div class="cmd"><span class="prompt">$</span> sleep 100 &amp;    <span class="cmt"># [1] 4567  ← Job #1, PID 4567</span><br>
+<span class="prompt">$</span> jobs           <span class="cmt"># [1]+  Running    sleep 100 &amp;</span><br>
+<span class="prompt">$</span> kill %1        <span class="cmt"># kill by job ID</span><br>
+<span class="prompt">$</span> kill 4567      <span class="cmt"># kill by PID</span></div>
+</section>
+
+<!-- ════════════════════════════════════════
+     MAX PID
+════════════════════════════════════════ -->
+<section id="max-pid">
+<h2>🔢 Maximum PID &amp; Wrap-around</h2>
+<div class="cmd"><span class="prompt">$</span> cat /proc/sys/kernel/pid_max   <span class="cmt"># usually 4194304 on 64-bit</span></div>
+<ul>
+  <li>Default on 32-bit systems: <strong>32768</strong></li>
+  <li>Default on 64-bit systems: <strong>4,194,304</strong> (4M)</li>
+  <li>PIDs 1–300 are reserved for kernel threads at boot</li>
+  <li>When the counter hits <code>pid_max</code> it <strong>wraps around</strong> back to 300 and skips any still-in-use PIDs</li>
+  <li>PID <strong>1</strong> is always <code>systemd</code> (or <code>init</code>) — the ancestor of all processes</li>
+</ul>
+<div class="cmd"><span class="prompt">$</span> sudo sysctl -w kernel.pid_max=65536   <span class="cmt"># change max PID</span></div>
+</section>
+
+<!-- ════════════════════════════════════════
+     PROCESS STATES
+════════════════════════════════════════ -->
+<section id="process-states">
+<h2>🔄 States of a Process</h2>
+<table>
+  <tr><th>State</th><th>Symbol in ps</th><th>Meaning</th></tr>
+  <tr><td><strong>Running</strong></td><td><code>R</code></td><td>Actively using the CPU or in the run queue</td></tr>
+  <tr><td><strong>Interruptible Sleep</strong></td><td><code>S</code></td><td>Waiting for an event (I/O, timer). Can be woken by a signal</td></tr>
+  <tr><td><strong>Uninterruptible Sleep</strong></td><td><code>D</code></td><td>Waiting for kernel I/O (e.g. disk). Cannot be killed easily</td></tr>
+  <tr><td><strong>Stopped</strong></td><td><code>T</code></td><td>Paused by SIGSTOP or debugger (gdb)</td></tr>
+  <tr><td><strong>Zombie</strong></td><td><code>Z</code></td><td>Exited but parent hasn't called wait(). Entry still in process table</td></tr>
+  <tr><td><strong>Traced</strong></td><td><code>t</code></td><td>Stopped under a debugger (ptrace)</td></tr>
+</table>
+
+<div class="box box-red">
+  <div class="box-title">⚠️ Zombie &amp; Orphan</div>
+  <p><strong>Zombie</strong>: Child exits before parent calls <code>wait()</code>. The entry stays in the process table until parent reaps it. Harmless in small numbers but accumulation wastes PIDs.</p>
+  <p><strong>Orphan</strong>: Parent dies before child. The child is re-parented to <code>init</code> (PID 1), which periodically calls <code>wait()</code>.</p>
+</div>
+</section>
+
+<!-- ════════════════════════════════════════
+     DAEMON
+════════════════════════════════════════ -->
+<section id="daemon">
+<h2>👻 Daemon Process</h2>
+<p>A <strong>daemon</strong> is a background service that starts at boot, runs without a terminal, and is generally a child of PID 1 (<code>systemd</code>). Examples: <code>sshd</code>, <code>cron</code>, <code>nginx</code>.</p>
+
+<h3>Daemonize Recipe (from examples/03_daemon.c)</h3>
+<pre><code class="lang-c">// 1. fork() – parent exits, child continues
+pid_t pid = fork();
+if (pid > 0) exit(0);
+
+// 2. setsid() – become session leader, detach terminal
+setsid();
+
+// 3. fork() again – can't accidentally reacquire a terminal
+pid = fork();
+if (pid > 0) exit(0);
+
+// 4. chdir("/") – don't block unmounting
+chdir("/");
+
+// 5. umask(0)  – don't inherit parent's file permissions
+umask(0);
+
+// 6. Close all fds, redirect stdin/stdout/stderr → /dev/null
+</code></pre>
+<div class="lang-tag">C</div>
+
+<div class="cmd"><span class="prompt">$</span> ps -e | grep nginx   <span class="cmt"># ? in TTY column = daemon</span></div>
+</section>
+
+<!-- ════════════════════════════════════════
+     SYSTEM BOOT
+════════════════════════════════════════ -->
+<section id="boot">
+<h2>🚀 System Boot Flow</h2>
+<ol>
+  <li><strong>BIOS/UEFI</strong> – power-on self-test, finds bootable disk</li>
+  <li><strong>GRUB/bootloader</strong> – loads the kernel image (<code>vmlinuz</code>) from disk</li>
+  <li><strong>Kernel init</strong> – decompresses, sets up memory, mounts initial RAM disk (<code>initrd</code>)</li>
+  <li><strong>PID 1 – systemd</strong> – first user-space process; reads unit files, starts services</li>
+  <li><strong>getty / login</strong> – terminal login, then user shell</li>
+</ol>
+<div class="cmd"><span class="prompt">$</span> systemd-analyze blame  <span class="cmt"># see what slowed boot</span><br>
+<span class="prompt">$</span> dmesg | head -30        <span class="cmt"># kernel ring buffer messages</span><br>
+<span class="prompt">$</span> pstree -p               <span class="cmt"># visualize process hierarchy from PID 1</span></div>
+</section>
+
+<!-- ════════════════════════════════════════
+     SCHEDULING
+════════════════════════════════════════ -->
+<section id="scheduling">
+<h2>📊 Scheduling Metrics</h2>
+<table>
+  <tr><th>Metric</th><th>Formula</th><th>Meaning</th></tr>
+  <tr><td><strong>Turnaround time</strong></td><td>Completion – Arrival</td><td>Total time from submission to finish</td></tr>
+  <tr><td><strong>Response time</strong></td><td>First-run – Arrival</td><td>Time until process first gets CPU</td></tr>
+  <tr><td><strong>Throughput</strong></td><td>Jobs / Time unit</td><td>How many jobs finish per second</td></tr>
+  <tr><td><strong>Waiting time</strong></td><td>Turnaround – Burst</td><td>Time spent in ready queue, not running</td></tr>
+</table>
+<div class="box box-blue">
+  <div class="box-title">📝 Example</div>
+  <p>Job arrives at t=0, burst=4s, first runs at t=2, completes at t=6<br>
+  → <strong>Turnaround</strong> = 6–0 = 6s &nbsp;|&nbsp; <strong>Response</strong> = 2–0 = 2s &nbsp;|&nbsp; <strong>Waiting</strong> = 6–4 = 2s</p>
+</div>
+</section>
+
+<!-- ════════════════════════════════════════
+     STARVATION
+════════════════════════════════════════ -->
+<section id="starvation">
+<h2>⏳ Job Starvation</h2>
+<p><strong>Starvation</strong> happens when a low-priority process never gets CPU time because higher-priority processes keep arriving. Common in <em>priority scheduling</em> and <em>SJF (Shortest Job First)</em>.</p>
+<ul>
+  <li><strong>Solution: Aging</strong> – gradually increase the priority of waiting processes</li>
+  <li>Linux CFS (Completely Fair Scheduler) avoids starvation using virtual runtime (<code>vruntime</code>)</li>
+</ul>
+<div class="cmd"><span class="prompt">$</span> nice -n 19 ./my_low_prio_task   <span class="cmt"># run with lowest priority</span><br>
+<span class="prompt">$</span> renice -n -5 -p 1234             <span class="cmt"># increase priority of PID 1234</span></div>
+</section>
+
+<!-- ════════════════════════════════════════
+     CPU / IO BOUND
+════════════════════════════════════════ -->
+<section id="cpu-io-bound">
+<h2>🖥️ CPU-bound vs I/O-bound</h2>
+<table>
+  <tr><th></th><th>CPU-bound</th><th>I/O-bound</th></tr>
+  <tr><td><strong>Bottleneck</strong></td><td>Processor speed</td><td>Disk / Network / Memory latency</td></tr>
+  <tr><td><strong>Example</strong></td><td>Video encoding, FFT, ML training</td><td>Web server, database, file copy</td></tr>
+  <tr><td><strong>Threads help?</strong></td><td>Yes, on multi-core</td><td>Yes, even single-core (overlap waits)</td></tr>
+  <tr><td><strong>High time in</strong></td><td>R state (Running)</td><td>S state (Sleeping / waiting)</td></tr>
+</table>
+</section>
+
+<!-- ════════════════════════════════════════
+     SIGNALS
+════════════════════════════════════════ -->
+<section id="signals">
+<h2>📡 Signals &amp; kill command</h2>
+
+<table>
+  <tr><th>Signal</th><th>Number</th><th>Default Action</th><th>Catchable?</th></tr>
+  <tr><td>SIGHUP</td><td>1</td><td>Hangup (reload config)</td><td>Yes</td></tr>
+  <tr><td>SIGINT</td><td>2</td><td>Ctrl+C – interrupt</td><td>Yes</td></tr>
+  <tr><td>SIGKILL</td><td>9</td><td>Force die – instant</td><td><strong>No</strong></td></tr>
+  <tr><td>SIGTERM</td><td>15</td><td>Graceful terminate</td><td>Yes</td></tr>
+  <tr><td>SIGSTOP</td><td>19</td><td>Pause process</td><td><strong>No</strong></td></tr>
+  <tr><td>SIGCONT</td><td>18</td><td>Resume paused process</td><td>Yes</td></tr>
+  <tr><td>SIGSEGV</td><td>11</td><td>Segmentation fault</td><td>Yes</td></tr>
+</table>
+
+<div class="cmd"><span class="prompt">$</span> kill -l                 <span class="cmt"># list all signal names</span><br>
+<span class="prompt">$</span> kill -9  &lt;PID&gt;          <span class="cmt"># SIGKILL: instant, unblockable</span><br>
+<span class="prompt">$</span> kill -15 &lt;PID&gt;          <span class="cmt"># SIGTERM: polite, allow cleanup</span><br>
+<span class="prompt">$</span> kill -19 &lt;PID&gt;          <span class="cmt"># SIGSTOP: suspend (Ctrl+Z equivalent)</span><br>
+<span class="prompt">$</span> kill -18 &lt;PID&gt;          <span class="cmt"># SIGCONT: resume stopped process</span></div>
+</section>
+
+<!-- ════════════════════════════════════════
+     SUSPEND STATE
+════════════════════════════════════════ -->
+<section id="suspend">
+<h2>⏸️ Suspend State (SIGSTOP / kill -19)</h2>
+<p>A process receiving <code>SIGSTOP</code> enters the <strong>T (Stopped)</strong> state. It remains in memory, holding all its resources, but gets no CPU time. <code>SIGCONT</code> resumes it from exactly where it left off.</p>
+<div class="cmd"><span class="prompt">$</span> ./signals &amp;          <span class="cmt"># run your program in bg</span><br>
+<span class="prompt">$</span> kill -19 %1          <span class="cmt"># suspend (SIGSTOP)</span><br>
+<span class="prompt">$</span> ps aux | grep signals <span class="cmt"># STATUS column shows 'T'</span><br>
+<span class="prompt">$</span> kill -18 %1          <span class="cmt"># resume (SIGCONT)</span></div>
+</section>
+
+<!-- ════════════════════════════════════════
+     SETJMP / LONGJMP
+════════════════════════════════════════ -->
+<section id="setjmp">
+<h2>🦘 setjmp / longjmp</h2>
+<p>Non-local goto — jump across function boundaries without unwinding the call stack normally. Often used as a C-level exception mechanism.</p>
+
+<table>
+  <tr><th>Function</th><th>What it does</th></tr>
+  <tr><td><code>setjmp(env)</code></td><td>Saves CPU state (registers, SP, PC) into <code>env</code>. Returns <code>0</code> on direct call</td></tr>
+  <tr><td><code>longjmp(env, val)</code></td><td>Restores saved state; <code>setjmp</code> appears to return <code>val</code> (never 0)</td></tr>
+</table>
+
+<pre><code class="lang-c">#include &lt;setjmp.h&gt;
+
+jmp_buf env;
+
+void risky() {
+    longjmp(env, 42);  // jump back!
+}
+
+int main() {
+    int r = setjmp(env);   // save state
+    if (r == 0) {
+        risky();           // triggers jump
+    } else {
+        printf("Caught: %d\n", r);  // prints 42
+    }
+}
+</code></pre>
+<div class="lang-tag">C</div>
+
+<div class="box box-red">
+  <div class="box-title">⚠️ Caveats</div>
+  <ul>
+    <li>Local variables may be <em>clobbered</em> — declare them <code>volatile</code></li>
+    <li>Does NOT call destructors or run cleanup code in skipped frames</li>
+    <li>For signal handlers use <code>sigsetjmp</code>/<code>siglongjmp</code></li>
+  </ul>
+</div>
+</section>
+
+<!-- ════════════════════════════════════════
+     THREADS & CONTEXT SWITCH
+════════════════════════════════════════ -->
+<section id="threads">
+<h2>🧵 Threads &amp; Context Switching</h2>
+<p>Threads within the same process share code, heap, globals, and file descriptors. Only the <strong>stack</strong> and <strong>CPU registers</strong> are per-thread.</p>
+
+<h3>Why context switching is cheaper for threads</h3>
+<ul>
+  <li><strong>Process switch</strong>: kernel saves/restores all registers + flushes TLB (memory map) → expensive</li>
+  <li><strong>Thread switch</strong> (same process): saves/restores only registers + stack pointer. No TLB flush needed → much cheaper</li>
+</ul>
+
+<pre><code class="lang-c">#include &lt;pthread.h&gt;
+
+void *worker(void *arg) {
+    printf("Thread %d running, PID=%d\n", *(int*)arg, getpid());
+    return NULL;
+}
+
+int main() {
+    pthread_t t;
+    int id = 1;
+    pthread_create(&t, NULL, worker, &id);
+    pthread_join(t, NULL);  // wait for thread
+}
+// Compile: gcc -lpthread
+</code></pre>
+<div class="lang-tag">C</div>
+</section>
+
+<!-- ════════════════════════════════════════
+     SYSTEM FUNCTION
+════════════════════════════════════════ -->
+<section id="system-fn">
+<h2>⚙️ system() Function</h2>
+<p><code>system(cmd)</code> runs a shell command <em>synchronously</em> — it blocks until the command finishes.</p>
+<pre><code class="lang-c">#include &lt;stdlib.h&gt;
+
+int main() {
+    system("ls -l /tmp");   // forks → exec /bin/sh -c "ls -l /tmp" → wait
+    printf("ls done\n");    // only runs AFTER ls completes
+}
+</code></pre>
+<div class="lang-tag">C</div>
+
+<div class="box box-yellow">
+  <div class="box-title">💡 Under the hood</div>
+  <p>Internally: <code>fork()</code> → child calls <code>execve("/bin/sh", ["-c", cmd])</code> → parent calls <code>wait()</code>. Because of <code>wait()</code>, execution is purely sequential.</p>
+</div>
+</section>
+
+<!-- ════════════════════════════════════════
+     LIBRARY vs SYSTEM CALLS
+════════════════════════════════════════ -->
+<section id="lib-vs-sys">
+<h2>📚 Library Calls vs System Calls</h2>
+<table>
+  <tr><th></th><th>Library Call</th><th>System Call</th></tr>
+  <tr><td><strong>Examples</strong></td><td>printf, fopen, malloc, strcpy</td><td>write, open, read, fork, mmap</td></tr>
+  <tr><td><strong>Runs in</strong></td><td>User space</td><td>Kernel space (via syscall instruction)</td></tr>
+  <tr><td><strong>Speed</strong></td><td>Fast (no mode switch)</td><td>Slower (ring-3 → ring-0 transition)</td></tr>
+  <tr><td><strong>Buffering</strong></td><td>Often buffered (libc)</td><td>Unbuffered, direct</td></tr>
+  <tr><td><strong>Error</strong></td><td>Returns NULL / -1, sets errno</td><td>Returns -1, sets errno</td></tr>
+</table>
+
+<pre><code class="lang-c">// Library call (buffered, user space)
+printf("Hello\n");
+
+// System call (unbuffered, kernel space)
+write(STDOUT_FILENO, "Hello\n", 6);
+
+// strace shows the actual syscalls:
+// $ strace ./your_program
+</code></pre>
+<div class="lang-tag">C</div>
+</section>
+
+<!-- ════════════════════════════════════════
+     KERNEL / USER SPACE
+════════════════════════════════════════ -->
+<section id="spaces">
+<h2>🔒 Kernel Space vs User Space</h2>
+<table>
+  <tr><th></th><th>User Space</th><th>Kernel Space</th></tr>
+  <tr><td><strong>CPU Ring</strong></td><td>Ring 3 (least privileged)</td><td>Ring 0 (most privileged)</td></tr>
+  <tr><td><strong>Memory access</strong></td><td>Process's virtual memory only</td><td>All physical memory</td></tr>
+  <tr><td><strong>Crash impact</strong></td><td>Only that process dies</td><td>Entire system (kernel panic)</td></tr>
+  <tr><td><strong>How to enter kernel</strong></td><td>System call, interrupt, exception</td><td>–</td></tr>
+</table>
+
+<div class="box box-blue">
+  <div class="box-title">🗺️ Address Space Layout (typical 64-bit)</div>
+  <pre style="background:transparent;border:none;padding:0;margin:.4rem 0 0">
+  0x0000 ─── User: text, data, heap, stack ─── 0x00007FFF...
+  0xFFFF ─── Kernel: code, drivers, mem maps ── 0xFFFFFFFF...</pre>
+</div>
+</section>
+
+<!-- ════════════════════════════════════════
+     FOPEN
+════════════════════════════════════════ -->
+<section id="fopen">
+<h2>📄 fopen – Buffered File I/O</h2>
+<p><code>fopen</code> is a <em>library call</em> that wraps the <code>open()</code> system call, adding a user-space buffer (FILE*). Writes go to the buffer first; <code>fclose</code>/<code>fflush</code> flushes to kernel.</p>
+
+<pre><code class="lang-c">#include &lt;stdio.h&gt;
+
+int main() {
+    // Open for write (creates if not exists)
+    FILE *f = fopen("/tmp/test.txt", "w");
+    if (!f) { perror("fopen"); return 1; }
+
+    fprintf(f, "Line 1\nLine 2\n");
+    fclose(f);   // flush + close
+
+    // Open for read
+    f = fopen("/tmp/test.txt", "r");
+    char buf[64];
+    while (fgets(buf, sizeof(buf), f))
+        printf("%s", buf);
+    fclose(f);
+}
+</code></pre>
+<div class="lang-tag">C</div>
+
+<table>
+  <tr><th>Mode</th><th>Meaning</th></tr>
+  <tr><td><code>"r"</code></td><td>Read only (file must exist)</td></tr>
+  <tr><td><code>"w"</code></td><td>Write only (create/truncate)</td></tr>
+  <tr><td><code>"a"</code></td><td>Append (create if not exists)</td></tr>
+  <tr><td><code>"r+"</code></td><td>Read + write (must exist)</td></tr>
+  <tr><td><code>"w+"</code></td><td>Read + write (create/truncate)</td></tr>
+  <tr><td><code>"b"</code></td><td>Binary mode (append to any above)</td></tr>
+</table>
+</section>
+
+<!-- ════════════════════════════════════════
+     FORK
+════════════════════════════════════════ -->
+<section id="fork">
+<h2>🍴 fork() – Creating Child Processes</h2>
+<p><code>fork()</code> creates an exact copy of the calling process. After <code>fork()</code>, both parent and child execute concurrently (execution point: right after the fork call).</p>
+
+<pre><code class="lang-c">#include &lt;unistd.h&gt;
+#include &lt;stdio.h&gt;
+#include &lt;sys/wait.h&gt;
+
+int main() {
+    pid_t pid = fork();
+
+    if (pid &lt; 0) {
+        perror("fork");     // error
+    } else if (pid == 0) {
+        // ── CHILD: fork returned 0 ──
+        printf("[child]  PID=%d PPID=%d\n", getpid(), getppid());
+    } else {
+        // ── PARENT: fork returned child's PID ──
+        printf("[parent] PID=%d child=%d\n", getpid(), pid);
+        wait(NULL);         // reap child (prevent zombie)
+    }
+    return 0;
+}
+</code></pre>
+<div class="lang-tag">C</div>
+
+<div class="box box-green">
+  <div class="box-title">🧬 Copy-on-Write (COW)</div>
+  <p>After <code>fork()</code>, the child doesn't immediately get a full copy of memory. Instead, both share the same physical pages. A copy is made only when either process <em>writes</em> to a page — this makes <code>fork()</code> very fast.</p>
+</div>
+</section>
+
+<!-- ════════════════════════════════════════
+     SOCKETS
+════════════════════════════════════════ -->
+<section id="sockets">
+<h2>🔌 Sockets – Network IPC</h2>
+<p>A socket is a file-descriptor to send/receive data over a network or between processes. TCP sockets are stream-based (reliable, ordered). UDP sockets are datagram-based (fast, unreliable).</p>
+
+<pre><code class="lang-c">/* ── TCP Server (bind, listen, accept) ── */
+#include &lt;stdio.h&gt;
+#include &lt;string.h&gt;
+#include &lt;sys/socket.h&gt;
+#include &lt;netinet/in.h&gt;
+#include &lt;unistd.h&gt;
+
+int main() {
+    int srv = socket(AF_INET, SOCK_STREAM, 0);  // TCP socket
+
+    struct sockaddr_in addr = {
+        .sin_family = AF_INET,
+        .sin_port   = htons(8080),     // port 8080
+        .sin_addr.s_addr = INADDR_ANY  // all interfaces
+    };
+
+    bind(srv, (struct sockaddr *)&addr, sizeof(addr));
+    listen(srv, 5);   // backlog 5 connections
+
+    printf("Listening on :8080\n");
+    int cli = accept(srv, NULL, NULL);      // blocks until client connects
+
+    char buf[256];
+    int n = read(cli, buf, sizeof(buf)-1);
+    buf[n] = '\0';
+    printf("Received: %s\n", buf);
+    write(cli, "Hello from server!\n", 19);
+
+    close(cli);
+    close(srv);
+    return 0;
+}
+</code></pre>
+<div class="lang-tag">C</div>
+
+<div class="cmd"><span class="prompt">$</span> gcc server.c -o server &amp;&amp; ./server &amp;<br>
+<span class="prompt">$</span> echo "Hi" | nc localhost 8080   <span class="cmt"># test with netcat</span></div>
+</section>
+
+<!-- ════════════════════════════════════════
+     FOOTER
+════════════════════════════════════════ -->
+<hr style="border-color:var(--border);margin:3rem 0 1rem">
+<p style="color:var(--muted);font-size:12px;text-align:center;padding-bottom:2rem">
+  Linux Kernel Internals – Study Notes &nbsp;|&nbsp; WSL / Ubuntu &nbsp;|&nbsp;
+  Files: <code>07a_fopen.c</code> &nbsp;<code>07b_fork.c</code> &nbsp;<code>07c_socket.c</code> &nbsp;|&nbsp;
+  Open in Edge: <code>explorer.exe linux_notes.html</code> &nbsp;|&nbsp;
+  Ref: <a href="https://man7.org/linux/man-pages/">man7.org</a>
+</p>
+</main>
+
+<script>
+  // Highlight active sidebar link based on scroll position
+  const sections = document.querySelectorAll('section[id]');
+  const links    = document.querySelectorAll('nav ul li a');
+
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        links.forEach(l => l.classList.remove('active'));
+        const active = document.querySelector(`nav a[href="#${e.target.id}"]`);
+        if (active) active.classList.add('active');
+      }
+    });
+  }, { threshold: 0.35 });
+
+  sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>
